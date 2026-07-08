@@ -44,8 +44,10 @@ docker run --gpus all --rm [options] listen-habibi [--output PATH] [--language a
 | Type | Example |
 |------|---------|
 | YouTube URL | `https://youtu.be/xxx` or `https://www.youtube.com/watch?v=xxx` |
-| Local video | Mount with `-v` and pass absolute container path |
-| Local audio | WAV, MP3, FLAC, OGG, M4A, AAC, OPUS |
+| Local video | Mount with `-v` and pass absolute container path (MP4, MKV, AVI, etc.) |
+| Local audio | WAV, MP3, FLAC, OGG, M4A, AAC, OPUS (auto-converted to 16kHz mono WAV) |
+
+> **Note:** vLLM's audio API only accepts 16kHz mono WAV. All input formats are auto-converted via ffmpeg.
 
 ### Volume Mounts
 
