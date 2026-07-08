@@ -7,6 +7,8 @@ Arabic speech transcription via [Cohere Transcribe Arabic](https://huggingface.c
 - NVIDIA GPU with **8GB+ VRAM** (model is 2B params, ~4GB BF16)
 - [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) (`nvidia-docker`)
 - Docker
+- **~34GB disk space** for the image (vLLM + CUDA + baked-in model)
+- **~70GB free disk** during `docker pull` (Docker temporarily stores compressed + uncompressed layers)
 
 ## Quick Start
 
