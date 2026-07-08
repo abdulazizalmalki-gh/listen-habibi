@@ -62,7 +62,11 @@ if [[ "$INPUT" =~ ^https?:// ]]; then
     # Resample to 16kHz mono for memory efficiency
     ffmpeg -y -i "$WORKDIR/audio_raw.wav" \
         -acodec pcm_s16le -ar 16000 -ac 1 \
-        "$WORKDIR/audio.wav" 2>/dev/null
+        "$WORKDIR/audio.wav" 2>&1 | tail -1
+    if [[ ! -f "$WORKDIR/audio.wav" ]]; then
+        echo "ERROR: ffmpeg audio conversion failed"
+        exit 1
+    fi
     rm -f "$WORKDIR/audio_raw.wav"
     AUDIO_FILE="$WORKDIR/audio.wav"
     if [[ -z "$AUDIO_FILE" ]]; then
@@ -95,7 +99,11 @@ if [[ "$AUDIO_FILE" != *.wav ]] || ! ffprobe -v quiet -show_streams "$AUDIO_FILE
         CLEANUP_AUDIO=1
     fi
     CONVERTED="$WORKDIR/audio_16k.wav"
-    ffmpeg -y -i "$AUDIO_FILE" -acodec pcm_s16le -ar 16000 -ac 1 "$CONVERTED" 2>/dev/null
+    ffmpeg -y -i "$AUDIO_FILE" -acodec pcm_s16le -ar 16000 -ac 1 "$CONVERTED" 2>&1 | tail -1
+    if [[ ! -f "$CONVERTED" ]]; then
+        echo "ERROR: ffmpeg conversion failed"
+        exit 1
+    fi
     AUDIO_FILE="$CONVERTED"
 fi
 
@@ -134,29 +142,56 @@ echo "==> vLLM server ready after ${WAITED}s"
 
 # ── Transcribe ──────────────────────────────────────────────
 echo "==> Transcribing (language=${LANGUAGE})..."
-RESPONSE=$(curl -s -X POST "http://localhost:$VLLM_PORT/v1/audio/transcriptions" \
-    -F "file=@$AUDIO_FILE" \
-    -F "model=$MODEL")
 
-# Check for error in response
-if echo "$RESPONSE" | grep -q '"error"'; then
-    echo "ERROR: Transcription API returned error:"
-    echo "$RESPONSE" | python3 -m json.tool
+# Split long audio into 30s chunks (model max context ~1024 tokens)
+CHUNK_DIR=$(mktemp -d)
+DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$AUDIO_FILE" 2>/dev/null | cut -d. -f1)
+DURATION=${DURATION:-0}
+
+if [[ "$DURATION" -gt 30 ]]; then
+    echo "==> Audio is ${DURATION}s — splitting into 30s chunks..."
+    ffmpeg -y -i "$AUDIO_FILE" -f segment -segment_time 30 -c copy "$CHUNK_DIR/chunk_%03d.wav" 2>/dev/null
+    CHUNKS=("$CHUNK_DIR"/chunk_*.wav)
+    echo "==> ${#CHUNKS[@]} chunks to process"
+else
+    CHUNKS=("$AUDIO_FILE")
+fi
+
+FULL_TEXT=""
+for CHUNK in "${CHUNKS[@]}"; do
+    CHUNK_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$CHUNK" 2>/dev/null | cut -d. -f1)
+    echo "   Processing chunk ($CHUNK_DUR}s): $(basename "$CHUNK")..."
+    RESPONSE=$(curl -s -X POST "http://localhost:$VLLM_PORT/v1/audio/transcriptions" \
+        -F "file=@$CHUNK" \
+        -F "model=$MODEL")
+
+    if echo "$RESPONSE" | grep -q '"error"'; then
+        echo "   WARNING: Chunk failed, skipping..."
+        echo "   Error: $RESPONSE" | python3 -m json.tool 2>/dev/null | head -3
+        continue
+    fi
+
+    CHUNK_TEXT=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['text'])" 2>/dev/null)
+    FULL_TEXT="${FULL_TEXT} ${CHUNK_TEXT}"
+done
+
+rm -rf "$CHUNK_DIR"
+
+if [[ -z "$FULL_TEXT" ]]; then
+    echo "ERROR: All chunks failed. Last error:"
+    echo "$RESPONSE" | python3 -m json.tool 2>/dev/null
     kill "$VLLM_PID" 2>/dev/null || true
     [[ $CLEANUP_AUDIO -eq 1 ]] && rm -rf "$WORKDIR"
     exit 1
 fi
 
-# Extract text from response
-TEXT=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['text'])")
-
 # ── Write output ────────────────────────────────────────────
 mkdir -p "$(dirname "$OUTPUT_FILE")"
-echo "$TEXT" > "$OUTPUT_FILE"
+echo "$FULL_TEXT" > "$OUTPUT_FILE"
 echo "==> Transcription written to: $OUTPUT_FILE"
 echo "==> Transcript preview:"
 echo "────────────────────────────────────────────"
-echo "$TEXT"
+echo "$FULL_TEXT"
 echo "────────────────────────────────────────────"
 
 # ── Cleanup ─────────────────────────────────────────────────
