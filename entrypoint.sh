@@ -58,6 +58,7 @@ if [[ "$INPUT" =~ ^https?:// ]]; then
     yt-dlp -x --audio-format wav --audio-quality 0 \
         -o "$WORKDIR/audio_raw.%(ext)s" \
         --no-playlist \
+        --extractor-args "youtube:player_client=android" \
         "$INPUT"
     # Resample to 16kHz mono for memory efficiency
     ffmpeg -y -i "$WORKDIR/audio_raw.wav" \
