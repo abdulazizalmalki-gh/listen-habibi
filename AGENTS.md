@@ -6,10 +6,10 @@ Arabic speech transcription Docker image using Cohere's Arabic ASR model via vLL
 
 ```
 /opt/stacks/cohere-transcribe-arabic/
-  Dockerfile        — vllm/vllm-openai:v0.23.0 + model + ffmpeg + yt-dlp
-  entrypoint.sh     — input → 16kHz mono WAV → vLLM → text output
+  Dockerfile        — vllm/vllm-openai:v0.23.0 + vllm[audio] + ffmpeg + yt-dlp
+  entrypoint.sh     — input → 16kHz mono → chunk 30s → vLLM → text output
   README.md         — human usage docs
-  AGENTS.md          — this file
+  AGENTS.md         — this file
   cohere-transcribe-arabic-07-2026/  — model files (3.9GB, COPY'd into image)
 ```
 
@@ -17,45 +17,52 @@ Arabic speech transcription Docker image using Cohere's Arabic ASR model via vLL
 
 ```bash
 cd /opt/stacks/cohere-transcribe-arabic
-DOCKER_BUILDKIT=0 docker build -t cohere-transcribe-arabic .
+DOCKER_BUILDKIT=0 docker build -t listen-habibi .
 ```
 
-The model is downloaded to the build context first, then COPY'd into the image. No HF token baked in.
-
-To update the model:
-1. Delete `cohere-transcribe-arabic-07-2026/` from the build context
-2. Re-download: `python3 -c "from huggingface_hub import snapshot_download; snapshot_download('CohereLabs/cohere-transcribe-arabic-07-2026', local_dir='cohere-transcribe-arabic-07-2026', token='$HF_TOKEN')"`
-3. Rebuild
+Model is downloaded to build context first, then COPY'd — no HF token in image layers.
 
 ## Key Design Decisions
 
-- **vLLM 0.23 not 0.24**: vLLM 0.24 doesn't recognize `CohereAsrForConditionalGeneration`. v0.23 does.
-- **16kHz mono conversion**: vLLM's audio loading (soundfile/pyav) fails on large 48kHz stereo WAVs. All audio is resampled to 16kHz mono PCM before transcription.
-- **`VLLM_MAX_AUDIO_CLIP_FILESIZE_MB=1000`**: Default limit is too low for real-world audio. Set to 1GB as ENV in Dockerfile (not runtime).
-- **No `--max-model-len`**: The ASR model has `max_position_embeddings=1024`, and overriding it with a larger value crashes vLLM.
-- **No `language` param in API call**: The cohere model auto-detects language. Passing `language` parameter is supported but defaults to auto-detect.
-- **Model baked in via host COPY**: Token never touches the image layers. Downloaded on host, COPY'd in.
-- **No librosa/soundfile in image**: Not needed — ffmpeg handles all audio conversion. Minimal dependencies.
-- **Apache 2.0 license**: Both this project and the Cohere model are Apache 2.0 licensed.
+- **vLLM 0.23 not 0.24**: 0.24 doesn't recognize `CohereAsrForConditionalGeneration`. v0.23 does.
+- **`vllm[audio]` pip extra**: Base image lacks `av`/`soundfile` — audio loading fails without it.
+- **16kHz mono conversion**: vLLM audio loading fails on large 48kHz stereo WAVs. All audio resampled.
+- **30s chunking**: Model has `max_position_embeddings=1024` (~30s speech). Audio auto-split via ffmpeg.
+- **`VLLM_MAX_AUDIO_CLIP_FILESIZE_MB=1000`**: ENV in Dockerfile. Default too low for real-world audio.
+- **yt-dlp `--extractor-args youtube:player_client=android`**: Skips JS runtime warning. `-q --no-warnings` for clean output.
+- **Silent output**: Only progress indicators shown. Transcript written to file, not printed.
+- **Model via host COPY**: Token never touches image layers. Downloaded on host, COPY'd in.
+- **Apache 2.0**: Both project and Cohere model are Apache 2.0 licensed.
+
+## Pipeline Flow
+
+1. Download/extract audio (yt-dlp for YouTube, ffmpeg for local)
+2. Convert to 16kHz mono PCM WAV
+3. If >30s: split into 30s chunks via ffmpeg segment muxer
+4. Start vLLM server (single-line spinner during ~50s startup)
+5. Transcribe each chunk via `/v1/audio/transcriptions` (single-line progress counter)
+6. Concatenate → write to output file
+7. Print "Done. Transcription saved to <path>"
 
 ## Debugging
 
-If transcription fails with "Invalid or unsupported audio file":
-1. Check audio is 16kHz mono WAV
-2. Check file size < 1GB (set `VLLM_MAX_AUDIO_CLIP_FILESIZE_MB`)
-3. Check vLLM log: `tail -50 /var/log/vllm.log`
-
-If vLLM server dies:
+If transcription fails:
 ```bash
-docker run --gpus all --rm --entrypoint "" cohere-transcribe-arabic bash -c '
-vllm serve /models/cohere-transcribe-arabic-07-2026 --host 0.0.0.0 --port 8000 --trust-remote-code
+docker run --gpus all --rm --entrypoint "" listen-habibi bash -c '
+export VLLM_MAX_AUDIO_CLIP_FILESIZE_MB=1000
+vllm serve /models/cohere-transcribe-arabic-07-2026 --host 0.0.0.0 --port 8000 --trust-remote-code &>/tmp/vllm.log &
+for i in $(seq 1 60); do curl -s http://localhost:8000/health >/dev/null 2>&1 && break; sleep 1; done
+# Test with a short WAV
+ffmpeg -y -f lavfi -i "sine=frequency=440:duration=5" -acodec pcm_s16le -ar 16000 -ac 1 /tmp/t.wav 2>/dev/null
+curl -s -X POST http://localhost:8000/v1/audio/transcriptions -F "file=@/tmp/t.wav" -F "model=/models/cohere-transcribe-arabic-07-2026"
+tail -20 /tmp/vllm.log
 '
 ```
 
 ## Pushing to GHCR
 
 ```bash
-docker tag cohere-transcribe-arabic ghcr.io/abdulazizalmalki-gh/listen-habibi:latest
+docker tag listen-habibi:latest ghcr.io/abdulazizalmalki-gh/listen-habibi:latest
 docker push ghcr.io/abdulazizalmalki-gh/listen-habibi:latest
 ```
 

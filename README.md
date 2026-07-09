@@ -49,7 +49,17 @@ docker run --gpus all --rm [options] listen-habibi [--output PATH] [--language a
 | Local video | Mount with `-v` and pass absolute container path (MP4, MKV, AVI, etc.) |
 | Local audio | WAV, MP3, FLAC, OGG, M4A, AAC, OPUS (auto-converted to 16kHz mono WAV) |
 
-> **Note:** vLLM's audio API only accepts 16kHz mono WAV. All input formats are auto-converted via ffmpeg.
+> **Note:** vLLM's audio API only accepts 16kHz mono WAV. All input formats are auto-converted via ffmpeg. Audio longer than 30s is automatically split into chunks for the model's context window.
+
+### How It Works
+
+1. Downloads/extracts audio (YouTube via yt-dlp, local via ffmpeg)
+2. Converts to 16kHz mono WAV for vLLM compatibility
+3. Splits audio into 30-second chunks (model context: 1024 tokens)
+4. Transcribes each chunk via vLLM's OpenAI-compatible `/v1/audio/transcriptions`
+5. Concatenates and writes result to output file
+
+Output is silent except for progress indicators — the transcript is written to the file, not printed to terminal.
 
 ### Volume Mounts
 
@@ -100,10 +110,10 @@ cat transcript.txt
 
 | Error | Fix |
 |-------|-----|
-| `Invalid or unsupported audio file` | Audio is auto-converted to 16kHz mono — if persistent, manually convert: `ffmpeg -i in.wav -acodec pcm_s16le -ar 16000 -ac 1 out.wav` |
-| `Maximum file size exceeded` | Video too long — the Dockerfile already sets `VLLM_MAX_AUDIO_CLIP_FILESIZE_MB=1000` (1GB). Trim audio if still exceeding this. |
-| GPU out of memory | Model needs ~6GB. Close other GPU processes. |
+| `Invalid or unsupported audio file` | Should not occur — audio is auto-converted to 16kHz mono WAV. If persistent, re-pull the image. |
+| GPU out of memory | Model needs ~6GB VRAM. Close other GPU processes. |
 | YouTube 403 Forbidden | Rate limited — wait a few minutes or use a local file |
+| `EngineCore encountered an issue` (500) | Audio too long for single request — image now auto-chunks. Re-pull if you see this. |
 
 ## License
 
