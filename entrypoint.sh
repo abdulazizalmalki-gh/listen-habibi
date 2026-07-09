@@ -1,20 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-# Use local model if baked into image, otherwise download from HF
+# Baked-in model path
 LOCAL_MODEL="/models/cohere-transcribe-arabic-07-2026"
-if [[ -d "$LOCAL_MODEL" ]]; then
-    MODEL="$LOCAL_MODEL"
-else
-    MODEL="CohereLabs/cohere-transcribe-arabic-07-2026"
-fi
+MODEL="$LOCAL_MODEL"
+
 OUTPUT_FILE="${OUTPUT_FILE:-/output/transcript.txt}"
-MODEL_DIR="${MODEL_DIR:-/models}"
-HF_HOME="${HF_HOME:-/models/.cache}"
 VLLM_PORT="${VLLM_PORT:-8000}"
 MAX_WAIT="${MAX_WAIT:-300}"
-
-export HF_HOME
 
 # ── Parse args ──────────────────────────────────────────────
 INPUT=""
@@ -117,7 +110,6 @@ vllm serve "$MODEL" \
     --host 0.0.0.0 \
     --port "$VLLM_PORT" \
     --trust-remote-code \
-    --download-dir "$MODEL_DIR" \
     &>/var/log/vllm.log &
 VLLM_PID=$!
 
