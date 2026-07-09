@@ -37,7 +37,6 @@ if [[ -z "$INPUT" ]]; then
     echo "  --language, -l: 'ar' or 'en' (default: ar)"
     echo ""
     echo "Environment:"
-    echo "  HF_TOKEN     HuggingFace token (required for first-run model download)"
     echo "  OUTPUT_FILE  default output path (overridden by --output)"
     echo "  VLLM_PORT    vLLM server port (default 8000)"
     echo "  MAX_WAIT     max seconds to wait for server (default 300)"
