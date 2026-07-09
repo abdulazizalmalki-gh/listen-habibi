@@ -195,11 +195,7 @@ fi
 # ── Write output ────────────────────────────────────────────
 mkdir -p "$(dirname "$OUTPUT_FILE")"
 echo "$FULL_TEXT" > "$OUTPUT_FILE"
-echo "==> Transcription written to: $OUTPUT_FILE"
-echo "==> Transcript preview:"
-echo "────────────────────────────────────────────"
-echo "$FULL_TEXT"
-echo "────────────────────────────────────────────"
+echo "==> Done. Transcription saved to $OUTPUT_FILE"
 
 # ── Cleanup ─────────────────────────────────────────────────
 [[ $CLEANUP_AUDIO -eq 1 ]] && rm -rf "$WORKDIR"
