@@ -110,10 +110,8 @@ cat transcript.txt
 
 | Error | Fix |
 |-------|-----|
-| `Invalid or unsupported audio file` | Should not occur — audio is auto-converted to 16kHz mono WAV. If persistent, re-pull the image. |
 | GPU out of memory | Model needs ~6GB VRAM. Close other GPU processes. |
 | YouTube 403 Forbidden | Rate limited — wait a few minutes or use a local file |
-| `EngineCore encountered an issue` (500) | Audio too long for single request — image now auto-chunks. Re-pull if you see this. |
 
 ## License
 
