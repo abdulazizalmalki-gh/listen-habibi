@@ -59,6 +59,7 @@ if [[ "$INPUT" =~ ^https?:// ]]; then
         -o "$WORKDIR/audio_raw.%(ext)s" \
         --no-playlist \
         --extractor-args "youtube:player_client=android" \
+        --no-warnings -q \
         "$INPUT"
     # Resample to 16kHz mono for memory efficiency
     ffmpeg -y -i "$WORKDIR/audio_raw.wav" \
@@ -133,12 +134,14 @@ while ! curl -s "http://localhost:$VLLM_PORT/health" >/dev/null 2>&1; do
     sleep 2
     WAITED=$((WAITED + 2))
     if [[ $WAITED -ge $MAX_WAIT ]]; then
+        echo ""
         echo "ERROR: vLLM server did not start within ${MAX_WAIT}s"
         tail -50 /var/log/vllm.log
         exit 1
     fi
-    echo "   ... ${WAITED}s elapsed"
+    printf "\r  Starting vLLM... %ds (may take up to 60s)" "$WAITED"
 done
+echo ""
 echo "==> vLLM server ready after ${WAITED}s"
 
 # ── Transcribe ──────────────────────────────────────────────
@@ -159,22 +162,25 @@ else
 fi
 
 FULL_TEXT=""
+TOTAL=${#CHUNKS[@]}
+COUNT=0
 for CHUNK in "${CHUNKS[@]}"; do
-    CHUNK_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$CHUNK" 2>/dev/null | cut -d. -f1)
-    echo "   Processing chunk ($CHUNK_DUR}s): $(basename "$CHUNK")..."
+    COUNT=$((COUNT + 1))
+    printf "\r  Transcribing... chunk %d/%d" "$COUNT" "$TOTAL"
     RESPONSE=$(curl -s -X POST "http://localhost:$VLLM_PORT/v1/audio/transcriptions" \
         -F "file=@$CHUNK" \
         -F "model=$MODEL")
 
     if echo "$RESPONSE" | grep -q '"error"'; then
-        echo "   WARNING: Chunk failed, skipping..."
-        echo "   Error: $RESPONSE" | python3 -m json.tool 2>/dev/null | head -3
+        echo ""
+        echo "   [!] Chunk $COUNT failed, skipping..."
         continue
     fi
 
     CHUNK_TEXT=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['text'])" 2>/dev/null)
     FULL_TEXT="${FULL_TEXT} ${CHUNK_TEXT}"
 done
+echo ""
 
 rm -rf "$CHUNK_DIR"
 
