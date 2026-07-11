@@ -116,7 +116,7 @@ docker run --gpus all --rm -v $(pwd):/output listen-habibi "https://youtu.be/xxx
 # Transcribe an Arabic podcast
 docker run --gpus all --rm -v $(pwd):/output \
   ghcr.io/abdulazizalmalki-gh/listen-habibi \
-  "https://youtu.be/ulDugCU4L1M"
+  "https://youtu.be/xxx"
 
 # Output saved to ./transcript.txt
 cat transcript.txt
