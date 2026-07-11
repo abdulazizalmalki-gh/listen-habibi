@@ -11,23 +11,27 @@ MAX_WAIT="${MAX_WAIT:-300}"
 
 # ── Parse args ──────────────────────────────────────────────
 INPUT=""
+COOKIES=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --output|-o)
             OUTPUT_FILE="$2"; shift 2 ;;
         --language|-l)
             LANGUAGE="$2"; shift 2 ;;
+        --cookies|-c)
+            COOKIES="$2"; shift 2 ;;
         *)
             INPUT="$1"; shift ;;
     esac
 done
 
 if [[ -z "$INPUT" ]]; then
-    echo "USAGE: docker run ... cohere-transcribe-arabic [--output /path/out.txt] <youtube-url|/path/to/video.mp4>"
+    echo "USAGE: docker run ... listen-habibi [--output /path/out.txt] [--cookies /path/cookies.txt] <youtube-url|/path/to/video.mp4>"
     echo ""
     echo "  INPUT: YouTube URL or absolute path to a video/audio file inside the container"
     echo "  --output, -o: output text file path (default: /output/transcript.txt)"
     echo "  --language, -l: 'ar' or 'en' (default: ar)"
+    echo "  --cookies, -c: path to Netscape cookies file (avoids YouTube rate-limiting, optional)"
     echo ""
     echo "Environment:"
     echo "  OUTPUT_FILE  default output path (overridden by --output)"
@@ -47,14 +51,27 @@ if [[ "$INPUT" =~ ^https?:// ]]; then
     echo "==> Downloading YouTube audio: $INPUT"
     WORKDIR=$(mktemp -d)
     CLEANUP_AUDIO=1
-    yt-dlp -x --audio-format wav --audio-quality 0 \
+    YTDLP_COOKIES=()
+    YTDLP_EXTRACTOR=()
+    if [[ -n "$COOKIES" ]]; then
+        YTDLP_COOKIES=(--cookies "$COOKIES")
+    else
+        YTDLP_EXTRACTOR=(--extractor-args "youtube:player_client=android")
+    fi
+    yt-dlp -x \
         -o "$WORKDIR/audio_raw.%(ext)s" \
         --no-playlist \
-        --extractor-args "youtube:player_client=android" \
         --no-warnings -q \
+        "${YTDLP_EXTRACTOR[@]}" \
+        "${YTDLP_COOKIES[@]}" \
         "$INPUT"
     # Resample to 16kHz mono for memory efficiency
-    ffmpeg -y -i "$WORKDIR/audio_raw.wav" \
+    RAW_AUDIO=$(ls "$WORKDIR"/audio_raw.* 2>/dev/null | head -1)
+    if [[ -z "$RAW_AUDIO" ]]; then
+        echo "ERROR: yt-dlp produced no output file"
+        exit 1
+    fi
+    ffmpeg -y -i "$RAW_AUDIO" \
         -acodec pcm_s16le -ar 16000 -ac 1 \
         "$WORKDIR/audio.wav" 2>&1 | tail -1
     if [[ ! -f "$WORKDIR/audio.wav" ]]; then

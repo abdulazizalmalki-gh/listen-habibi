@@ -29,7 +29,7 @@ Model is downloaded to build context first, then COPY'd — no HF token in image
 - **16kHz mono conversion**: vLLM audio loading fails on large 48kHz stereo WAVs. All audio resampled.
 - **30s chunking**: Model has `max_position_embeddings=1024` (~30s speech). Audio auto-split via ffmpeg.
 - **`VLLM_MAX_AUDIO_CLIP_FILESIZE_MB=1000`**: ENV in Dockerfile. Default too low for real-world audio.
-- **yt-dlp `--extractor-args youtube:player_client=android`**: Skips JS runtime warning. `-q --no-warnings` for clean output.
+- **yt-dlp smart client**: Uses `player_client=android` (no JS needed) by default; switches to web client when `--cookies` provided.
 - **Silent output**: Only progress indicators shown. Transcript written to file, not printed.
 - **Model via host COPY**: Token never touches image layers. Downloaded on host, COPY'd in.
 - **Apache 2.0**: Both project and Cohere model are Apache 2.0 licensed.

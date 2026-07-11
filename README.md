@@ -40,6 +40,22 @@ docker run --gpus all --rm [options] listen-habibi [--output PATH] [--language a
 | `<input>` | YouTube URL or absolute path to video/audio file inside container |
 | `--output, -o` | Output text file path (default: `/output/transcript.txt`) |
 | `--language, -l` | `ar` for Arabic, `en` for English (default: `ar`) |
+| `--cookies, -c` | Path to Netscape cookies file (optional, avoids YouTube rate-limiting) |
+
+### Using Cookies (Optional)
+
+To avoid YouTube rate-limiting, export cookies from your browser in **Netscape format** (use [Get cookies.txt](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) for Chrome, or the `--cookies-from-browser` flag) and mount:
+
+```bash
+docker run --gpus all --rm \
+  -v $(pwd):/output \
+  -v ~/cookies.txt:/cookies.txt \
+  ghcr.io/abdulazizalmalki-gh/listen-habibi \
+  --cookies /cookies.txt \
+  "https://youtu.be/xxx"
+```
+
+Cookies are optional — the image works without them, but authenticated users may see fewer blocks.
 
 ### Supported Input Formats
 
