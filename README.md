@@ -93,23 +93,6 @@ Output is silent except for progress indicators — the transcript is written to
 - **License**: Apache 2.0
 - **Engine**: vLLM 0.23 with `--trust-remote-code`
 
-## Build from Source
-
-```bash
-# 1. Download model (requires HF token — accept terms at model page first)
-HF_TOKEN=your_token python3 -c "
-from huggingface_hub import snapshot_download
-snapshot_download('CohereLabs/cohere-transcribe-arabic-07-2026',
-    local_dir='cohere-transcribe-arabic-07-2026', token='$HF_TOKEN')
-"
-
-# 2. Build image
-DOCKER_BUILDKIT=0 docker build -t listen-habibi .
-
-# 3. Run
-docker run --gpus all --rm -v $(pwd):/output listen-habibi "https://youtu.be/xxx"
-```
-
 ## Example
 
 ```bash
