@@ -121,7 +121,6 @@ The model ([CohereLabs/cohere-transcribe-arabic-07-2026](https://huggingface.co/
 
 ## Disclaimer
 
-- This project is intended for **personal, non-commercial use** only.
 - YouTube and all related trademarks and logos are the property of Google LLC.
 - Cohere and all related trademarks and logos are the property of Cohere Inc.
 - Users are responsible for complying with the terms of service of any platform they interact with.
