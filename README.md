@@ -118,3 +118,12 @@ cat transcript.txt
 This project is licensed under the Apache License 2.0 — see [LICENSE](LICENSE) for details.
 
 The model ([CohereLabs/cohere-transcribe-arabic-07-2026](https://huggingface.co/CohereLabs/cohere-transcribe-arabic-07-2026)) is also Apache 2.0 licensed.
+
+## Disclaimer
+
+- This project is intended for **personal, non-commercial use** only.
+- YouTube and all related trademarks and logos are the property of Google LLC.
+- Cohere and all related trademarks and logos are the property of Cohere Inc.
+- Users are responsible for complying with the terms of service of any platform they interact with.
+- Do not use this tool to infringe on anyone's rights, privacy, or intellectual property.
+- The authors assume no liability for any misuse of this software.
